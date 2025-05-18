@@ -57,34 +57,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     texts.forEach(text => {
-        text.addEventListener('mouseover', () => {
-            text.style.transition = 'transform 0.3s ease, color 0.3s ease';
-            text.style.transform = 'scale(1.1)';
-            cursorScale = 1.3;
-            currentHoveredText = text;
-            lensedTextContainer.textContent = text.textContent;
-            updateLensedTextPosition(text);
-            lensedTextContainer.style.display = 'block';
-        });
-        text.addEventListener('mouseout', () => {
-            text.style.transform = 'scale(1)';
-            cursorScale = 1;
-            currentHoveredText = null;
-            if (lensedTextContainer) {
-                lensedTextContainer.style.display = 'none';
-                lensedTextContainer.textContent = '';
-            }
-        });
-        // 클릭 이벤트는 기존대로 유지
-        text.addEventListener('click', (e) => {
-            const rect = text.getBoundingClientRect();
-            createWaterDrops(rect.left + rect.width / 2, rect.top + rect.height);
-            text.style.transform = 'scale(0.95)';
-            setTimeout(() => {
+        let touchHoverTimeout = null;
+        let lastTapTime = 0;
+
+        text.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const now = Date.now();
+            if (currentHoveredText !== text) {
+                // hover 효과
                 text.style.transform = 'scale(1.1)';
-            }, 150);
+                currentHoveredText = text;
+                lensedTextContainer.textContent = text.textContent;
+                updateLensedTextPosition(text);
+                lensedTextContainer.style.display = 'block';
+                // 일정 시간 후 hover 해제
+                clearTimeout(touchHoverTimeout);
+                touchHoverTimeout = setTimeout(() => {
+                    text.style.transform = 'scale(1)';
+                    currentHoveredText = null;
+                    lensedTextContainer.style.display = 'none';
+                }, 1200);
+            } else if (now - lastTapTime < 400) {
+                // 더블탭: 클릭 효과
+                const rect = text.getBoundingClientRect();
+                createWaterDrops(rect.left + rect.width / 2, rect.top + rect.height);
+                text.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    text.style.transform = 'scale(1.1)';
+                }, 150);
+                lensedTextContainer.style.display = 'none';
+                currentHoveredText = null;
+            }
+            lastTapTime = now;
         });
     });
+
+    document.body.addEventListener('touchstart', (e) => {
+        if (!e.target.classList.contains('interactive-text')) {
+            if (currentHoveredText) {
+                currentHoveredText.style.transform = 'scale(1)';
+                currentHoveredText = null;
+                lensedTextContainer.style.display = 'none';
+            }
+        }
+    }, {passive: false});
 
     function updateSpatialGrid() {
         spatialGrid.clear();
@@ -469,6 +485,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             this.el.style.left = `${this.x}px`;
             this.el.style.top = `${this.y}px`;
+
+            const dropRect = waterDrop.getBoundingClientRect();
+            if (
+                this.x > dropRect.left && this.x < dropRect.right &&
+                this.y + this.length > dropRect.top && this.y < dropRect.bottom
+            ) {
+                // 흔들림 효과
+                waterDrop.style.transform += ' rotate(' + (Math.random() - 0.5) * 6 + 'deg)';
+                // 작은 스플래시 파티클 생성
+                createParticleSplash(this.x, dropRect.top, 8);
+            }
         }
     }
 
@@ -489,4 +516,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     startRain();
+
+    function isMobile() {
+        return /Mobi|Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent);
+    }
+    if (isMobile()) {
+        document.getElementById('water-drop').style.display = 'none';
+    }
+
+    function createTextRipple(x, y, parent) {
+        const ripple = document.createElement('div');
+        ripple.className = 'text-ripple';
+        ripple.style.left = `${x}px`;
+        ripple.style.top = `${y}px`;
+        parent.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 700);
+    }
 }); 
